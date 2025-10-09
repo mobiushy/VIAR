@@ -1,0 +1,14 @@
+# torch~=2.1.0
+torch==2.7.0
+
+Pillow
+huggingface_hub
+numpy
+pytz
+transformers
+typed-argument-parser
+
+torchvision==0.22.0
+tensorboard
+
+# flash-attn==2.7.4.post1
