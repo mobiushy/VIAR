@@ -55,6 +55,18 @@ class AmpOptimizer:
             if self.scaler is not None:
                 self.scaler.step(self.optimizer)
                 scaler_sc: float = self.scaler.get_scale()
+                print(f'[scaler_sc = {scaler_sc}]\n', flush=True)
+                # Auto-resetting the scaler when it is too small to avoid underflow
+                if scaler_sc < 1e-4:
+                    print(f"警告: Scale 值过低 ({scaler_sc:.2e}), 重置缩放器")
+                    # 渐进降低初始值
+                    self.scaler.load_state_dict({
+                        "scale": max(self.scaler._init_scale * 0.8, 1024),
+                        "growth_factor": 2.0,
+                        "backoff_factor": 0.5,
+                        "growth_interval": 2000,
+                        "_growth_tracker": 0
+                    })
                 if scaler_sc > 32768.: # fp16 will overflow when >65536, so multiply 32768 could be dangerous
                     self.scaler.update(new_scale=32768.)
                 else:

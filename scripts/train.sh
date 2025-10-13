@@ -53,13 +53,13 @@
 torchrun \
   --nnodes=1 \
   --node_rank=0 \
-  --nproc_per_node=4 \
+  --nproc_per_node=8 \
   --master_addr=127.0.0.1 \
   --master_port=7777 \
   train.py \
-  --data_path=/data2/jiangpf/data/imagenet-1k \
+  --data_path=/gemini/space/jiangpf/data/imagenet-1k \
   --depth=30 \
-  --bs=96 \
+  --bs=960 \
   --ep=350 \
   --tblr=8e-5 \
   --fp16=1 \

@@ -53,6 +53,7 @@ class Args(Tap):
     glb_batch_size: int = 0 # [automatically set; don't specify this] global batch size = args.batch_size * dist.get_world_size()
     ac: int = 1             # gradient accumulation
     
+    save_freq: int = 5
     ep: int = 250
     wp: float = 0
     wp0: float = 0.005      # initial lr ratio at the begging of lr warm up
