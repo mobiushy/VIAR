@@ -12,6 +12,7 @@ log/
 tb*/
 img*/
 local_output*
+samples/
 *.pth
 *.pth.tar
 *.ckpt
