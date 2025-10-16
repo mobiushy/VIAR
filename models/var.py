@@ -95,6 +95,13 @@ class VAR(nn.Module):
             self.implicit_with_grad_min_iters = implicit_with_grad_min_iters
             self.implicit_with_grad_max_iters = implicit_with_grad_max_iters
 
+            # projection for stabilizing the implicit block training
+            self.implicit_block_projection = nn.Sequential(
+                nn.Linear(2 * embed_dim, 2 * embed_dim),
+                nn.GELU(approximate="tanh"),
+                nn.Linear(2 * embed_dim, embed_dim)
+            )
+
             self.shared_ada_lin = nn.Sequential(nn.SiLU(inplace=False), SharedAdaLin(self.D, 6*self.C)) if shared_aln else nn.Identity()
 
             norm_layer = partial(nn.LayerNorm, eps=norm_eps)
@@ -255,7 +262,8 @@ class VAR(nn.Module):
 
     def _forward_implicit_block(self, x_BLC, input_injection, cond_BD_or_gss, attn_bias, num_iters):
         def forward_once(x):
-            x = x + input_injection
+            x = torch.cat((x, input_injection), dim=-1)
+            x = self.implicit_block_projection(x)
             x = self.implicit_block(x, cond_BD_or_gss, attn_bias)
             return x
         
@@ -368,7 +376,54 @@ class VAR(nn.Module):
         
         # ============================================== VIAR ==============================================
         if self.use_implicit:
-            pass
+            # pre
+            for block_idx, sab in enumerate(self.pre_blocks):
+                sab: AdaLNSelfAttn
+                sab.attn.proj.weight.data.div_(math.sqrt(2 * self.depth))
+                sab.ffn.fc2.weight.data.div_(math.sqrt(2 * self.depth))
+                if hasattr(sab.ffn, 'fcg') and sab.ffn.fcg is not None:
+                    nn.init.ones_(sab.ffn.fcg.bias)
+                    nn.init.trunc_normal_(sab.ffn.fcg.weight, std=1e-5)
+                if hasattr(sab, 'ada_lin'):
+                    sab.ada_lin[-1].weight.data[2*self.C:].mul_(init_adaln)
+                    sab.ada_lin[-1].weight.data[:2*self.C].mul_(init_adaln_gamma)
+                    if hasattr(sab.ada_lin[-1], 'bias') and sab.ada_lin[-1].bias is not None:
+                        sab.ada_lin[-1].bias.data.zero_()
+                elif hasattr(sab, 'ada_gss'):
+                    sab.ada_gss.data[:, :, 2:].mul_(init_adaln)
+                    sab.ada_gss.data[:, :, :2].mul_(init_adaln_gamma)
+            # implicit
+            sab = self.implicit_block
+            sab: AdaLNSelfAttn
+            sab.attn.proj.weight.data.div_(math.sqrt(2 * self.depth))
+            sab.ffn.fc2.weight.data.div_(math.sqrt(2 * self.depth))
+            if hasattr(sab.ffn, 'fcg') and sab.ffn.fcg is not None:
+                nn.init.ones_(sab.ffn.fcg.bias)
+                nn.init.trunc_normal_(sab.ffn.fcg.weight, std=1e-5)
+            if hasattr(sab, 'ada_lin'):
+                sab.ada_lin[-1].weight.data[2*self.C:].mul_(init_adaln)
+                sab.ada_lin[-1].weight.data[:2*self.C].mul_(init_adaln_gamma)
+                if hasattr(sab.ada_lin[-1], 'bias') and sab.ada_lin[-1].bias is not None:
+                    sab.ada_lin[-1].bias.data.zero_()
+            elif hasattr(sab, 'ada_gss'):
+                sab.ada_gss.data[:, :, 2:].mul_(init_adaln)
+                sab.ada_gss.data[:, :, :2].mul_(init_adaln_gamma)
+            # post
+            for block_idx, sab in enumerate(self.post_blocks):
+                sab: AdaLNSelfAttn
+                sab.attn.proj.weight.data.div_(math.sqrt(2 * self.depth))
+                sab.ffn.fc2.weight.data.div_(math.sqrt(2 * self.depth))
+                if hasattr(sab.ffn, 'fcg') and sab.ffn.fcg is not None:
+                    nn.init.ones_(sab.ffn.fcg.bias)
+                    nn.init.trunc_normal_(sab.ffn.fcg.weight, std=1e-5)
+                if hasattr(sab, 'ada_lin'):
+                    sab.ada_lin[-1].weight.data[2*self.C:].mul_(init_adaln)
+                    sab.ada_lin[-1].weight.data[:2*self.C].mul_(init_adaln_gamma)
+                    if hasattr(sab.ada_lin[-1], 'bias') and sab.ada_lin[-1].bias is not None:
+                        sab.ada_lin[-1].bias.data.zero_()
+                elif hasattr(sab, 'ada_gss'):
+                    sab.ada_gss.data[:, :, 2:].mul_(init_adaln)
+                    sab.ada_gss.data[:, :, :2].mul_(init_adaln_gamma)
         # ============================================== VAR ===============================================
         else:
             depth = len(self.blocks)

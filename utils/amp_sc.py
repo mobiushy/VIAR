@@ -55,7 +55,7 @@ class AmpOptimizer:
             if self.scaler is not None:
                 self.scaler.step(self.optimizer)
                 scaler_sc: float = self.scaler.get_scale()
-                print(f'[scaler_sc = {scaler_sc}]\n', flush=True)
+                # print(f'[scaler_sc = {scaler_sc}]\n', flush=True)
                 # Auto-resetting the scaler when it is too small to avoid underflow
                 if scaler_sc < 1e-4:
                     print(f"警告: Scale 值过低 ({scaler_sc:.2e}), 重置缩放器")

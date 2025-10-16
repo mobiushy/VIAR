@@ -59,7 +59,7 @@ torchrun \
   train.py \
   --data_path=/gemini/space/jiangpf/data/imagenet-1k \
   --depth=30 \
-  --bs=960 \
+  --bs=832 \
   --ep=350 \
   --tblr=8e-5 \
   --fp16=1 \
