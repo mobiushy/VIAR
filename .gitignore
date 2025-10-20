@@ -18,3 +18,4 @@ samples/
 *.ckpt
 *.log
 *.ipynb
+*.pb

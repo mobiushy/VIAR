@@ -16,6 +16,7 @@ parser.add_argument("--ckpt_path", type=str, default='/gemini/space/jiangpf/VIAR
 parser.add_argument("--vae_ckpt", type=str, default='/gemini/space/jiangpf/VIAR/vae_ch160v4096z32.pth')
 parser.add_argument("--cfg", type=float, default=1.5)
 parser.add_argument("--depth", type=int, default=30)
+parser.add_argument("--use_implicit", type=bool, default=False)
 parser.add_argument("--sample_dir", type=str, default="./samples")
 args = parser.parse_args()
 
@@ -37,11 +38,16 @@ if 'vae' not in globals() or 'var' not in globals():
         V=4096, Cvae=32, ch=160, share_quant_resi=4,    # hard-coded VQVAE hyperparameters
         device=device, patch_nums=patch_nums,
         num_classes=1000, depth=MODEL_DEPTH, shared_aln=False,
+        use_implicit=args.use_implicit
     )
 
 # load checkpoints
 vae.load_state_dict(torch.load(vae_ckpt, map_location='cpu'), strict=True)
-var.load_state_dict(torch.load(var_ckpt, map_location='cpu'), strict=True)
+# var.load_state_dict(torch.load(var_ckpt, map_location='cpu'), strict=True)
+ckpt = torch.load(var_ckpt, map_location='cpu')
+ckpt = ckpt['trainer']['var_wo_ddp']
+var.load_state_dict(ckpt, strict=True)
+
 vae.eval(), var.eval()
 for p in vae.parameters(): p.requires_grad_(False)
 for p in var.parameters(): p.requires_grad_(False)
@@ -69,8 +75,12 @@ torch.backends.cudnn.allow_tf32 = bool(tf32)
 torch.backends.cuda.matmul.allow_tf32 = bool(tf32)
 torch.set_float32_matmul_precision('high' if tf32 else 'highest')
 
-folder_name = f"d{MODEL_DEPTH}-{os.path.basename(args.ckpt_path)}-" \
-                f"cfg-{args.cfg}-seed-{seed}"
+if args.use_implicit:
+    folder_name = f"implicit-{os.path.basename(args.ckpt_path)}-" \
+                  f"cfg-{args.cfg}-seed-{seed}"
+else:
+    folder_name = f"d{MODEL_DEPTH}-{os.path.basename(args.ckpt_path)}-" \
+                  f"cfg-{args.cfg}-seed-{seed}"
 sample_folder_dir = f"{args.sample_dir}/{folder_name}"
 os.makedirs(sample_folder_dir, exist_ok=True)
 

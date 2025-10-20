@@ -177,6 +177,7 @@ class Evaluator:
         return FIDStatistics(mu, sigma)
 
     def compute_inception_score(self, activations: np.ndarray, split_size: int = 5000) -> float:
+        np.random.shuffle(activations)
         softmax_out = []
         for i in range(0, len(activations), self.softmax_batch_size):
             acts = activations[i : i + self.softmax_batch_size]

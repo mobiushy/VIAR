@@ -12,3 +12,7 @@ torchvision==0.22.0
 tensorboard
 
 # flash-attn==2.7.4.post1
+
+# for eval
+tensorflow
+scipy
