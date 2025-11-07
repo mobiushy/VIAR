@@ -126,6 +126,7 @@ class VAR(nn.Module):
                 drop=drop_rate, attn_drop=attn_drop_rate, drop_path=dpr[depth//2], last_drop_p=dpr[pre_depth-1],
                 attn_l2_norm=attn_l2_norm,
                 flash_if_available=flash_if_available, fused_if_available=fused_if_available,
+                use_implicit=use_implicit
             )
             # post
             self.post_blocks = nn.ModuleList([
@@ -233,6 +234,10 @@ class VAR(nn.Module):
             for b in self.post_blocks: b.attn.kv_caching(True)
         else:
             for b in self.blocks: b.attn.kv_caching(True)
+        
+        import numpy as np
+        iters_list = np.linspace(15, 5, 10, dtype=int).tolist()
+        # print('iters_list:', iters_list)
         for si, pn in enumerate(self.patch_nums):   # si: i-th segment
             ratio = si / self.num_stages_minus_1
             # last_L = cur_L
@@ -248,21 +253,11 @@ class VAR(nn.Module):
                     x = b(x=x, cond_BD=cond_BD_or_gss, attn_bias=None)
                 
                 # implicit
-                init_solution = x.clone()
                 input_injection = x.clone()
-
-                with nullcontext():  # we use x.detach() in place of torch.no_grad due to DDP issue
-                    num_iters_no_grad = random.randint(self.implicit_no_grad_min_iters, self.implicit_no_grad_max_iters)
-                    x = self._forward_implicit_block(x_BLC=init_solution.detach(), input_injection=input_injection.detach(), 
-                                                     cond_BD_or_gss=cond_BD_or_gss, attn_bias=None, num_iters=num_iters_no_grad)
-                    x = x.detach()  # no grad
-                num_iters_with_grad = random.randint(self.implicit_with_grad_min_iters, self.implicit_with_grad_max_iters)
+                num_iters = iters_list[si]
+                # print(si, num_iters)
                 x = self._forward_implicit_block(x_BLC=x, input_injection=input_injection, cond_BD_or_gss=cond_BD_or_gss, 
-                                                 attn_bias=None, num_iters=num_iters_with_grad)
-                # kv caching in last forward
-                # self.implicit_block.attn.kv_caching(True)
-                # x = self.implicit_block(x=x, cond_BD=cond_BD_or_gss, attn_bias=None)
-                # self.implicit_block.attn.kv_caching(False)
+                                                 attn_bias=None, num_iters=num_iters)
 
                 # post
                 for b in self.post_blocks:
@@ -301,14 +296,14 @@ class VAR(nn.Module):
         return self.vae_proxy[0].fhat_to_img(f_hat).add_(1).mul_(0.5)   # de-normalize, from [-1, 1] to [0, 1]
 
     def _forward_implicit_block(self, x_BLC, input_injection, cond_BD_or_gss, attn_bias, num_iters):
-        def forward_once(x):
+        def forward_once(x, it):
             x = torch.cat((x, input_injection), dim=-1)
             x = self.implicit_block_projection(x)
-            x = self.implicit_block(x, cond_BD_or_gss, attn_bias)
+            x = self.implicit_block(x, cond_BD_or_gss, attn_bias, cur_it=it)
             return x
         
-        for _ in range(num_iters):
-            x_BLC = forward_once(x_BLC)
+        for it in range(num_iters):
+            x_BLC = forward_once(x_BLC, it)
         return x_BLC
     
     def forward(self, label_B: torch.LongTensor, x_BLCv_wo_first_l: torch.Tensor) -> torch.Tensor:  # returns logits_BLV

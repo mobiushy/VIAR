@@ -43,10 +43,16 @@ if 'vae' not in globals() or 'var' not in globals():
 
 # load checkpoints
 vae.load_state_dict(torch.load(vae_ckpt, map_location='cpu'), strict=True)
-# var.load_state_dict(torch.load(var_ckpt, map_location='cpu'), strict=True)
-ckpt = torch.load(var_ckpt, map_location='cpu')
-ckpt = ckpt['trainer']['var_wo_ddp']
-var.load_state_dict(ckpt, strict=True)
+
+var.load_state_dict(torch.load(var_ckpt, map_location='cpu'), strict=True)
+# print(args.use_implicit)
+# if args.use_implicit:
+#     ckpt = torch.load(var_ckpt, map_location='cpu')
+#     ckpt = ckpt['trainer']['var_wo_ddp']
+#     var.load_state_dict(ckpt, strict=True)
+# else:
+#     var.load_state_dict(torch.load(var_ckpt, map_location='cpu'), strict=True)
+
 
 vae.eval(), var.eval()
 for p in vae.parameters(): p.requires_grad_(False)

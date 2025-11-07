@@ -59,9 +59,11 @@ class SelfAttention(nn.Module):
     def __init__(
         self, block_idx, embed_dim=768, num_heads=12,
         attn_drop=0., proj_drop=0., attn_l2_norm=False, flash_if_available=True,
+        use_implicit=False,
     ):
         super().__init__()
         assert embed_dim % num_heads == 0
+        self.use_implicit = use_implicit
         self.block_idx, self.num_heads, self.head_dim = block_idx, num_heads, embed_dim // num_heads  # =64
         self.attn_l2_norm = attn_l2_norm
         if self.attn_l2_norm:
@@ -87,7 +89,7 @@ class SelfAttention(nn.Module):
     def kv_caching(self, enable: bool): self.caching, self.cached_k, self.cached_v = enable, None, None
     
     # NOTE: attn_bias is None during inference because kv cache is enabled
-    def forward(self, x, attn_bias):
+    def forward(self, x, attn_bias, cur_it=-1):
         B, L, C = x.shape
         
         qkv = F.linear(input=x, weight=self.mat_qkv.weight, bias=torch.cat((self.q_bias, self.zero_k_bias, self.v_bias))).view(B, L, 3, self.num_heads, self.head_dim)
@@ -104,9 +106,54 @@ class SelfAttention(nn.Module):
             q = F.normalize(q, dim=-1).mul(scale_mul)
             k = F.normalize(k, dim=-1)
         
+        # kv cache selection for VIAR
         if self.caching:
-            if self.cached_k is None: self.cached_k = k; self.cached_v = v
-            else: k = self.cached_k = torch.cat((self.cached_k, k), dim=dim_cat); v = self.cached_v = torch.cat((self.cached_v, v), dim=dim_cat)
+            if self.cached_k is None:
+                if self.use_implicit:
+                    # self.cached_k = k; self.cached_v = v
+                    self.cached_k = {cur_it: k}; self.cached_v = {cur_it: v}
+                else:
+                    self.cached_k = k; self.cached_v = v
+            else:
+                if self.use_implicit:
+                    # no selection
+                    # k = self.cached_k = torch.cat((self.cached_k, k), dim=dim_cat); v = self.cached_v = torch.cat((self.cached_v, v), dim=dim_cat)
+
+                    # TODO: kv cache selection
+                    # self.cached_k = torch.cat((self.cached_k, k), dim=dim_cat); self.cached_v = torch.cat((self.cached_v, v), dim=dim_cat)
+                    # import numpy as np
+                    # patch_nums=(1, 2, 3, 4, 5, 6, 8, 10, 13, 16)
+                    # iters_list = np.linspace(10, 5, 10, dtype=int).tolist()
+                    
+                    # cur_pn = int(math.sqrt(k.shape[1])); cur_idx = patch_nums.index(cur_pn)
+                    # begin = 0; kv_idxs = []
+                    # for pn, it in zip(patch_nums[:cur_idx], iters_list[:cur_idx]):
+                    #     kv_idxs.append((begin+(pn**2)*cur_it, begin+(pn**2)*(cur_it+1)))
+                    #     begin += (pn**2)*it
+                    
+                    # if kv_idxs:
+                    #     sel_k = torch.cat([self.cached_k[:, s:e, :] for s, e in kv_idxs], dim=dim_cat)
+                    #     sel_v = torch.cat([self.cached_v[:, s:e, :] for s, e in kv_idxs], dim=dim_cat)
+                    #     k = torch.cat((sel_k, k), dim=dim_cat)
+                    #     v = torch.cat((sel_v, v), dim=dim_cat)
+                    # print("implicit kv cache shape:")
+                    # print(self.cached_k.shape, self.cached_v.shape)
+
+                    # kv cache分组
+                    if cur_it not in self.cached_k:
+                        self.cached_k[cur_it] = k
+                        self.cached_v[cur_it] = v
+                    else:
+                        k = self.cached_k[cur_it] = torch.cat((self.cached_k[cur_it], k), dim=dim_cat)
+                        v = self.cached_v[cur_it] = torch.cat((self.cached_v[cur_it], v), dim=dim_cat)
+
+                    # print("implicit kv cache shape:")
+                    # print(k.shape, v.shape)
+
+                else:
+                    k = self.cached_k = torch.cat((self.cached_k, k), dim=dim_cat); v = self.cached_v = torch.cat((self.cached_v, v), dim=dim_cat)
+                    # print("pre or post kv cache shape:")
+                    # print(self.cached_k.shape, self.cached_v.shape)
         
         dropout_p = self.attn_drop if self.training else 0.0
         if using_flash:
@@ -129,13 +176,14 @@ class AdaLNSelfAttn(nn.Module):
     def __init__(
         self, block_idx, last_drop_p, embed_dim, cond_dim, shared_aln: bool, norm_layer,
         num_heads, mlp_ratio=4., drop=0., attn_drop=0., drop_path=0., attn_l2_norm=False,
-        flash_if_available=False, fused_if_available=True,
+        flash_if_available=False, fused_if_available=True, use_implicit=False,
     ):
         super(AdaLNSelfAttn, self).__init__()
         self.block_idx, self.last_drop_p, self.C = block_idx, last_drop_p, embed_dim
         self.C, self.D = embed_dim, cond_dim
         self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
-        self.attn = SelfAttention(block_idx=block_idx, embed_dim=embed_dim, num_heads=num_heads, attn_drop=attn_drop, proj_drop=drop, attn_l2_norm=attn_l2_norm, flash_if_available=flash_if_available)
+        self.attn = SelfAttention(block_idx=block_idx, embed_dim=embed_dim, num_heads=num_heads, attn_drop=attn_drop, proj_drop=drop, 
+                                  attn_l2_norm=attn_l2_norm, flash_if_available=flash_if_available, use_implicit=use_implicit)
         self.ffn = FFN(in_features=embed_dim, hidden_features=round(embed_dim * mlp_ratio), drop=drop, fused_if_available=fused_if_available)
         
         self.ln_wo_grad = norm_layer(embed_dim, elementwise_affine=False)
@@ -149,12 +197,12 @@ class AdaLNSelfAttn(nn.Module):
         self.fused_add_norm_fn = None
     
     # NOTE: attn_bias is None during inference because kv cache is enabled
-    def forward(self, x, cond_BD, attn_bias):   # C: embed_dim, D: cond_dim
+    def forward(self, x, cond_BD, attn_bias, cur_it=-1):   # C: embed_dim, D: cond_dim
         if self.shared_aln:
             gamma1, gamma2, scale1, scale2, shift1, shift2 = (self.ada_gss + cond_BD).unbind(2) # 116C + B16C =unbind(2)=> 6 B1C
         else:
             gamma1, gamma2, scale1, scale2, shift1, shift2 = self.ada_lin(cond_BD).view(-1, 1, 6, self.C).unbind(2)
-        x = x + self.drop_path(self.attn( self.ln_wo_grad(x).mul(scale1.add(1)).add_(shift1), attn_bias=attn_bias ).mul_(gamma1))
+        x = x + self.drop_path(self.attn( self.ln_wo_grad(x).mul(scale1.add(1)).add_(shift1), attn_bias=attn_bias, cur_it=cur_it ).mul_(gamma1))
         x = x + self.drop_path(self.ffn( self.ln_wo_grad(x).mul(scale2.add(1)).add_(shift2) ).mul(gamma2)) # this mul(gamma2) cannot be in-placed when FusedMLP is used
         return x
     
