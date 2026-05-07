@@ -1,15 +1,9 @@
-# Visual Implicit Autoregressive Modeling (VIAR)
+# VIAR: Visual Implicit Autoregressive Modeling [ICML 2026]
 
 <div align="center">
 
 [![arXiv](https://img.shields.io/badge/arXiv%20paper-2605.01220-b31b1b.svg)](https://arxiv.org/abs/2605.01220)&nbsp;
 [![huggingface weights](https://img.shields.io/badge/%F0%9F%A4%97%20Weights-mobiushy/VIAR-yellow)](https://huggingface.co/mobiushy/VIAR)&nbsp;
-</div>
-
-<div>
-  <p align="center" style="font-size: larger;">
-    <strong>ICML 2026</strong>
-  </p>
 </div>
 
 <p align="center">
