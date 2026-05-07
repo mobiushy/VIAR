@@ -51,7 +51,7 @@ Download the VAE checkpoint and the original VAR-D30 checkpoint from HuggingFace
 and
 [var_d30.pth](https://huggingface.co/FoundationVision/var/resolve/main/var_d30.pth). 
 VIAR checkpoint is available here: 
-[viar.pth](https://huggingface.co/mobiushy/VIAR/blob/main/viar.pth)
+[viar.pth](https://huggingface.co/mobiushy/VIAR/resolve/main/viar.pth)
 
 
 ## Data Preparation
@@ -186,7 +186,7 @@ python gen_img.py \
 
 Generated images are saved to `gen_images/` by default.
 
-You can control the number of iterations per scale by adjusting the argments `iter_left` and `iter_right` in `scripts\eval.sh`.
+You can control the number of iterations per scale by adjusting the argments `iter_left` and `iter_right` in `scripts/eval.sh`.
 
 <p align="center">
   <img src="assets/conv.jpg" alt="VIAR Comparison" width="100%">
