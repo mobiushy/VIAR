@@ -51,7 +51,7 @@ Download the VAE checkpoint and the original VAR-D30 checkpoint from HuggingFace
 and
 [var_d30.pth](https://huggingface.co/FoundationVision/var/resolve/main/var_d30.pth). 
 VIAR checkpoint is available here: 
-[viar.pth](https://huggingface.co/mobiushy/VIAR/resolve/main/viar.pth)
+[viar.pth](https://huggingface.co/mobiushy/VIAR/resolve/main/viar.pth).
 
 
 ## Data Preparation
@@ -99,8 +99,8 @@ torchrun \
   train.py \
   --data_path=/path/to/imagenet-1k \
   --depth=30 \
-  --bs=272 \
-  --ep=350 \
+  --bs=512 \
+  --ep=550 \
   --tblr=8e-5 \
   --fp16=1 \
   --alng=1e-5 \
@@ -196,10 +196,10 @@ Our experiments show that the implicit equilibrium layer stabilizes quickly at e
 
 ## Citation
 ```
-@article{viar,
-      title={Visual Implicit Autoregressive Modeling}, 
-      author={Jiang, Pengfei and Luo, Jixiang and Lin, Luxi and Huang, Zhaohong and Li, Xuelong},
-      journal={arXiv preprint arXiv:2605.01220},
-      year={2026}
+@article{jiang2026visual,
+  title={Visual Implicit Autoregressive Modeling},
+  author={Jiang, Pengfei and Luo, Jixiang and Lin, Luxi and Huang, Zhaohong and Li, Xuelong},
+  journal={arXiv preprint arXiv:2605.01220},
+  year={2026}
 }
 ```
